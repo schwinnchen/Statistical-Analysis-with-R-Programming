@@ -1,0 +1,427 @@
+---
+title: "Modeling and prediction for movies"
+author: "Schwinn Chen"
+date: "June 21, 2017"
+output: html_document
+---
+
+* * *
+
+## Part 1: Data
+The data set is comprised of 651 randomly sampled movies produced and released before 2016. Because random samples are used in this analysis. The conclusions from this analysis can be generalized to US population. As no random assignment was conducted in the sampling, we can only draw observational (non-causal) conclusions from this report. 
+
+* * *
+
+## Part 2: Research question
+We are interested in predicting the ratings of movies based on a number of movie features. The data set contains 32 variables (refer to the movies code book for details of the variables). We will redefine our research question more clearly as we learn more about the variables in the section of Exploratory Data Analysis. 
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+# Load packages
+
+```{r load-packages, message = FALSE}
+
+library(dplyr)
+library(statsr)
+library(ggplot2)
+```
+
+```{r load-data}
+#load dataset
+load("movies.Rdata")
+```
+
+
+The dataset consists of 32 variables. We exclude variables that  1) do not provide meaningful prediction 2) randomly related to movie ratings 3) provide redundant or collinear information. 4) do not meet linear regression conditions
+ 
+###1) do not provide meaningful prediction
+The following categorical variables are unique (or almost unique) to each movies, such as title, director, first main actor/actress, movie's link to IMDP page, and so on. If we consider these variables, there will be too many categories to obtain meaningful findings in our prediction. We will not include these 9 variables: title, studio, director, actor1, actor2, actor3, actor4, actor5, imdb_url, rt_url.
+
+For example, variable "studio" indicates the studio that produced the movie. Using the following R code, we find that there are 212 categories in "studio", too many to provide meaningful prediction. 
+
+
+```{r}
+movies%>%
+group_by(studio)%>%
+summarise(count=n())
+```
+
+###2) randomly related to movie ratings 
+We find that the following variables have random relation to movie ratings:
+thtr_rel_year, thtr_rel_month, thtr_rel_day, dvd_rel_year, dvd_rel_month, dvd_rel_day.
+For example, "dvd_rel_month" tells us the month the movie was released on DVD.
+We can plot a scatter chart to see the relation between "dvd_rel_month" (explanatory) and "imdb_rating" (response). The chart indicates that "dvd_rel_month" and "imdb_rating" are not correlated, therefore, "dvd_rel_month" will not provide meaningful information about the IMDB ratings. Similarly,  we exclude "thtr_rel_year", "thtr_rel_month", "thtr_rel_day", "dvd_rel_year", and "dvd_rel_dayIn".
+
+```{r}
+#plot distribution of month vs. imdb_rating
+ggplot(movies, aes(x=dvd_rel_month, y=imdb_rating))+geom_jitter()
+```
+
+###3) provide redundant or collinear information  
+We find that the following variables are paired. 
+
+"critics_rating" and "critics_score"
+"critics_rating" is a categorical variable for critics rating on Rotten Tomatoes (Certified Fresh, Fresh, Rotten) and "critics_score" is its numerical counterpart. These two variables tells redundant information. We will keep the numerical variable "critics_score" and discard "critics_rating".
+
+In a similar fashion, we keep "audience_score" and discard "audience_rating". 
+
+###4) remove numberical variables that do not meet linear regression conditions. 
+Now have four numerical variables in our model "runtime", "imdb_num_votes", "critics_score" and "audience_score". We need to find whether these variables meet the conditions for linear regression before we include them in our model. 
+
+```{r}
+#plot scattered plot to find whether runtime or imdb_num_votes correlates to imdb_rating
+ggplot(movies, aes(x=runtime, y=imdb_rating))+geom_jitter()+xlab("Runtime")+ylab("IMDB Rating")
+ggplot(movies, aes(x=imdb_num_votes, y=imdb_rating))+geom_jitter()+xlab("Number of IMDB Votes")+ylab("IMDB Rating")
+```
+
+We can see that all three numerical variables are positively correlated to our response variable.
+
+Next we will conduct regression modeling of 'imdb_rating with' respect to the three numerical variables to find whether the conditions for linear regression is met in each variable. 
+
+4.1) regression modeling of 'imdb_rating' with respect to 'runtime'
+
+```{r}
+# remove NA data
+movies<-movies%>%
+  filter(!is.na(runtime))%>%
+  filter(!is.na(imdb_num_votes))%>%
+  filter(!is.na(critics_score))
+#residual plot, histogram and Quantile-Quantile plot of runtime. 
+runtime<-lm(imdb_rating~runtime, data=movies)
+par(mfrow=c(1,3))
+#residuals plot x=runtime
+plot(runtime$residuals~movies$runtime, main="Residual Plot of Runtime", xlab="Runtime", ylab="Residuals")
+hist(runtime$residuals,main="Histogram of Runtime Residuals", xlab="Runtime Residuals", ylab="Counts") #histogram of residuals
+qqnorm(runtime$residuals, main="Normal probability plot of runtime residuals") # Normal QQ plot of residuals
+qqline(runtime$residuals)
+
+```
+From the above residual plot, histogram and Quantile-Quantile plot of runtime, we can see that the residuals are not distributed normally around 0 (left skewed) at constant variance. Therefore, 'runtime' will not predict reliable prediction and we will not include it in our model. 
+
+4.2) regression modeling of 'imdb_rating' with respect to 'imdb_num_votes'
+```{r}
+#residual plot, histogram and Quantile-Quantile plot of 'imdb_num_votes'. 
+imdb_num_votes<-lm(imdb_rating~imdb_num_votes, data=movies)
+par(mfrow=c(1,3))
+#residuals plot x=imdb_num_votes
+plot(imdb_num_votes$residuals~movies$imdb_num_votes, main="Residual Plot of IMDB Number of Votes", xlab="IMDB Number of Votes", ylab="Residuals")
+hist(imdb_num_votes$residuals,main="Histogram of Votes Residuals", xlab="Number of Votes Residuals", ylab="Counts") #histogram of residuals
+qqnorm(imdb_num_votes$residuals, main="Normal probability plot of number of votes residuals") # Normal QQ plot of residuals
+qqline(imdb_num_votes$residuals)
+```
+
+From the above residual plot, histogram and Quantile-Quantile plot of runtime, we can see that the residuals are not distributed normally around 0 (left skewed) at constant variance. Therefore, 'imdb_num_votes' will not predict reliable prediction and we will not include it in our model. 
+
+
+4.3) regression modeling of 'imdb_rating' with respect to 'audience_score'
+```{r}
+#residual plot, histogram and Quantile-Quantile plot of 'audience_score'. 
+audience_score<-lm(imdb_rating~audience_score, data=movies)
+par(mfrow=c(1,3))
+#residuals plot x=audience_score
+
+plot(audience_score$residuals~movies$critics_score, main="Residual Plot of audience Score", xlab="audience Score", ylab="Residuals")
+hist(audience_score$residuals,main="Histogram of audience_Score Residuals", xlab="audience Score Residuals", ylab="Counts") #histogram of residuals
+qqnorm(audience_score$residuals, main="Normal probability plot of audience_score residuals") # Normal QQ plot of residuals
+qqline(audience_score$residuals)
+
+```
+
+From the above residual plot, histogram and Quantile-Quantile plot of runtime, we can see that the residuals are not distributed normally around 0 (left skewed) at constant variance. Therefore, 'audience_score' will not predict reliable prediction and we will not include it in our model. 
+
+
+5.3) regression modeling of 'imdb_rating' with respect to 'critics_score'
+```{r}
+#residual plot, histogram and Quantile-Quantile plot of 'critics_score'. 
+critics_score<-lm(imdb_rating~critics_score, data=movies)
+par(mfrow=c(1,3))
+#residuals plot x=critics_score
+
+plot(critics_score$residuals~movies$critics_score, main="Residual Plot of critics Score", xlab="critics Score", ylab="Residuals")
+hist(critics_score$residuals,main="Histogram of critics_acore Residuals", xlab="critics Score Residuals", ylab="Counts") #histogram of residuals
+qqnorm(critics_score$residuals, main="Normal probability plot of critics_score residuals") # Normal QQ plot of residuals
+qqline(critics_score$residuals)
+
+```
+
+
+From the above residual plot, histogram and Quantile-Quantile plot of runtime, we can see that the residuals are nearly normal distributed around 0 at constant variance. Therefore, we will use 'critics_score' in our model. 
+
+## Redefined Research Question
+
+We will create a statistical model to predict the IMDB ratings of a movie based on 651 movies released before 2016. 
+'imdb_rating' is the response variable.  
+We consider ten explanatory variables: "title_type", "genre", "mpaa_rating","critics_score", "best_pic_nom", "best_pic_win", "best_actor_win", "best_actress_win", "best_dir_win", "top200_box". 
+
+## Part 4: Modeling
+In the Part 4 (Modeling), we will find the parsimonious model that include the simplest variables.
+We have one numerical variable "critics_score" and nine categorical variables.
+
+```{r}
+#linear regression in all variables and store in "full_model"
+full_model<-lm(imdb_rating~title_type+genre+mpaa_rating+critics_score+best_pic_nom+best_pic_win+best_actor_win+best_actress_win+best_dir_win+top200_box, data=movies)
+summary(full_model)
+```
+
+We find that the p-values of "best_pic_win", "best_actor_win", "best_actress_win" and "top200_box" are too large to yield statistically significant predictions, therefore, we discard these variables. 
+
+Now, our model has ten explanatory variables: "title_type", "genre", "mpaa_rating","critics_score", best_pic_nom", "best_dir_win", "best_pic_win", "best_actor_win", "best_actress_win" and "top200_box".
+Because we have ten explanatory variables, we choose the forward selection approach. We will conduct our selection using adjusted R^2 method because it is more reliable than the p-value method.
+
+
+```{r results = "hold"}
+#calulate adjusted R^2 for each explanatory variable
+
+title_type<-lm(imdb_rating ~ title_type, data = movies)
+paste("The adj. R sqr for 'title_type' is", summary(title_type)$adj.r.squared)
+genre<-lm(imdb_rating ~ genre, data = movies)
+paste("The adj. R sqr for 'genre' is", summary(genre)$adj.r.squared)
+mpaa_rating<-lm(imdb_rating ~ mpaa_rating, data = movies)
+paste("The adj. R sqr for 'mpaa_rating' is",summary(mpaa_rating)$adj.r.squared)
+critics_score<-lm(imdb_rating ~ critics_score, data = movies)
+paste("The adj. R sqr for 'critics_score' is",summary(critics_score)$adj.r.squared)
+best_pic_nom<-lm(imdb_rating ~ best_pic_nom, data = movies)
+paste("The adj. R sqr for 'best_pic_nom' is",summary(best_pic_nom)$adj.r.squared)
+best_pic_win<-lm(imdb_rating ~ best_pic_win, data = movies)
+paste("The adj. R sqr for 'best_pic_win' is",summary(best_pic_win)$adj.r.squared)
+best_actor_win<-lm(imdb_rating ~ best_actor_win, data = movies)
+paste("The adj. R sqr for 'best_actor_win' is",summary(best_actor_win)$adj.r.squared)
+best_actress_win<-lm(imdb_rating ~ best_actress_win, data = movies)
+paste("The adj. R sqr for 'best_actress_win' is",summary(best_actress_win)$adj.r.squared)
+best_dir_win<-lm(imdb_rating ~ best_dir_win, data = movies)
+paste("The adj. R sqr for 'best_dir_win' is",summary(best_dir_win)$adj.r.squared)
+top200_box<-lm(imdb_rating ~ top200_box, data = movies)
+paste("The adj. R sqr for 'top200_box' is",summary(top200_box)$adj.r.squared)
+```
+
+The largest adjusted R^2 is 0.584, which is contributed by "critics_score". Next, we will add each of the other explanatory variable to "critics_score" and generate adjusted R^2. 
+
+
+```{r results = "hold"}
+
+#calulate adjusted R^2 for "cirtics_score"+ each of the other explanatory variable
+critics_title<-lm(imdb_rating ~ critics_score+title_type, data = movies)
+paste("The adj. R sqr for 'critics_score'+'title_type' is", summary(critics_title)$adj.r.squared)
+critics_genre<-lm(imdb_rating ~ critics_score+genre, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre' is", summary(critics_genre)$adj.r.squared)
+critics_mpaa<-lm(imdb_rating ~ critics_score+mpaa_rating, data = movies)
+paste("The adj. R sqr for 'critics_score'+'mpaa_rating' is",summary(critics_mpaa)$adj.r.squared)
+critics_pic_nom<-lm(imdb_rating ~critics_score+ best_pic_nom, data = movies)
+paste("The adj. R sqr for 'critics_score'+'best_pic_nom' is", summary(critics_pic_nom)$adj.r.squared)
+critics_pic_win<-lm(imdb_rating ~critics_score+ best_pic_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'best_pic_win' is", summary(critics_pic_win)$adj.r.squared)
+critics_actor_win<-lm(imdb_rating ~critics_score+ best_actor_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'best_actor_win' is", summary(critics_actor_win)$adj.r.squared)
+critics_actress_win<-lm(imdb_rating ~critics_score+ best_actress_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'best_actress_win' is", summary(critics_actress_win)$adj.r.squared)
+critics_dir_win<-lm(imdb_rating ~ critics_score+best_dir_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'best_dir_win' is",summary(critics_dir_win)$adj.r.squared)
+critics_top200<-lm(imdb_rating ~critics_score+ top200_box, data = movies)
+paste("The adj. R sqr for 'critics_score'+'top200_box' is", summary(critics_top200)$adj.r.squared)
+```
+
+The largest adjusted R^2 is 0.6089, which is contributed by 'critics_score'+'genre'. Next, we will add each of the other explanatory variable to "critics_score"+ "genre" and generate adjusted R^2.
+
+
+```{r results = "hold"}
+
+#calulate adjusted R^2 for 'critics_score'+'genre'+ each of the other explanatory variable
+
+critics_genre_title<-lm(imdb_rating ~critics_score+genre+title_type, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'title_type' is",summary(critics_genre_title)$adj.r.squared)
+critics_genre_mpaa<-lm(imdb_rating ~critics_score+genre+mpaa_rating, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'mpaa_rating' is",summary(critics_genre_mpaa)$adj.r.squared)
+critics_genre_pic_nom<-lm(imdb_rating ~critics_score+genre+best_pic_nom, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' is",summary(critics_genre_pic_nom)$adj.r.squared)
+critics_genre_pic_win<-lm(imdb_rating ~critics_score+genre+best_pic_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_win' is",summary(critics_genre_pic_win)$adj.r.squared)
+critics_genre_actor_win<-lm(imdb_rating ~critics_score+genre+best_actor_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_actor_win' is",summary(critics_genre_actor_win)$adj.r.squared)
+critics_genre_actress_win<-lm(imdb_rating ~critics_score+genre+best_actress_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_actress_win' is",summary(critics_genre_actress_win)$adj.r.squared)
+critics_genre_dir_win<-lm(imdb_rating ~critics_score+genre+best_dir_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_dir_win' is",summary(critics_genre_dir_win)$adj.r.squared)
+critics_genre_top200<-lm(imdb_rating ~critics_score+genre+top200_box, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'top200_box' is",summary(critics_genre_top200)$adj.r.squared)
+```
+
+The largest adjusted R^2 is 0.6144, which is contributed by 'critics_score'+'genre'+'best_pic_nom'. Next, we will add each of the other explanatory variable to  'critics_score'+'genre'+'best_pic_nom' and generate adjusted R^2.
+
+```{r results = "hold"}
+
+#calulate adjusted R^2 for  ''critics_score'+'genre'+'best_pic_nom'+ each of the other explanatory variable
+
+critics_genre_pic_nom_title<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type' is",summary(critics_genre_pic_nom_title)$adj.r.squared)
+critics_genre_pic_nom_mpaa<-lm(imdb_rating ~critics_score+genre+best_pic_nom+mpaa_rating, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'mpaa_rating' is",summary(critics_genre_pic_nom_mpaa)$adj.r.squared)
+critics_genre_pic_nom_pic_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+best_pic_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'best_pic_win' is",summary(critics_genre_pic_nom_pic_win)$adj.r.squared)
+critics_genre_pic_nom_actor_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+best_actor_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'best_actor_win' is",summary(critics_genre_pic_nom_actor_win)$adj.r.squared)
+critics_genre_pic_nom_actress_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+best_actress_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'best_actress_win' is",summary(critics_genre_pic_nom_actress_win)$adj.r.squared)
+critics_genre_pic_nom_dir_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+best_dir_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'best_dir_win' is",summary(critics_genre_pic_nom_dir_win)$adj.r.squared)
+critics_genre_pic_nom_top200<-lm(imdb_rating ~critics_score+genre+best_pic_nom+top200_box, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'top200_box' is",summary(critics_genre_pic_nom_top200)$adj.r.squared)
+
+```
+
+The largest adjusted R^2 is 0.61509, which is contributed by 'critics_score'+'genre'+'best_pic_nom' +'title_type'. Next, we will add each of the other explanatory variable to 'critics_score'+'genre'+'best_pic_nom' +'title_type' and generate adjusted R^2.
+
+
+```{r results = "hold"}
+
+#calulate adjusted R^2 for  'critics_score'+'genre'+'best_pic_nom' +'title_type'+ each of the other explanatory variable
+
+critics_genre_pic_nom_title_mpaa<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+mpaa_rating, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''mpaa_rating' is",summary(critics_genre_pic_nom_title_mpaa)$adj.r.squared)
+
+critics_genre_pic_nom_title_pic_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_pic_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_pic_win' is",summary(critics_genre_pic_nom_title_pic_win)$adj.r.squared)
+
+critics_genre_pic_nom_title_actor_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_actor_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_actor_win' is",summary(critics_genre_pic_nom_title_actor_win)$adj.r.squared)
+
+critics_genre_pic_nom_title_actress_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_actress_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_actress_win' is",summary(critics_genre_pic_nom_title_actress_win)$adj.r.squared)
+
+critics_genre_pic_nom_title_dir_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win' is",summary(critics_genre_pic_nom_title_dir_win)$adj.r.squared)
+
+critics_genre_pic_nom_title_top200<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+top200_box, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+'top200_box' is",summary(critics_genre_pic_nom_title_top200)$adj.r.squared)
+
+```
+
+The largest adjusted R^2 is 0.61565, which is contributed by 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'. Next, we will add each of the other explanatory variable to 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win' and generate adjusted R^2.
+
+```{r results = "hold"}
+
+#calulate adjusted R^2 for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+ each of the other explanatory variable
+
+critics_genre_pic_nom_title_dir_win_mpaa<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+mpaa_rating, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'mpaa_rating' is",summary(critics_genre_pic_nom_title_dir_win_mpaa)$adj.r.squared)
+critics_genre_pic_nom_title_dir_win_pic_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+best_pic_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'best_pic_win' is",summary(critics_genre_pic_nom_title_dir_win_pic_win)$adj.r.squared)
+critics_genre_pic_nom_title_dir_win_actor_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+best_actor_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'best_actor_win' is",summary(critics_genre_pic_nom_title_dir_win_actor_win)$adj.r.squared)
+critics_genre_pic_nom_title_dir_win_actress_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+best_actress_win, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'best_actress_win' is",summary(critics_genre_pic_nom_title_dir_win_actress_win)$adj.r.squared)
+critics_genre_pic_nom_title_dir_win_top200<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+top200_box, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box' is",summary(critics_genre_pic_nom_title_dir_win_top200)$adj.r.squared)
+
+
+```
+
+The largest adjusted R^2 is 0.61588, which is contributed by 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'. Next, we will add each of the other explanatory variable to 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box' and generate adjusted R^2.
+
+```{r results = "hold"}
+
+#calulate adjusted R^2 for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'+ each of the other explanatory variable
+
+critics_genre_pic_nom_title_dir_win_top200_mpaa<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+top200_box+mpaa_rating, data = movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'+'mpaa_rating' is",summary(critics_genre_pic_nom_title_dir_win_top200_mpaa)$adj.r.squared)
+critics_genre_pic_nom_title_dir_win_top200_actor_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+top200_box+best_actor_win, data=movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'+'best_actor_win' is",summary(critics_genre_pic_nom_title_dir_win_top200_actor_win)$adj.r.squared)
+critics_genre_pic_nom_title_dir_win_top200_actress_win<-lm(imdb_rating ~critics_score+genre+best_pic_nom+title_type+best_dir_win+top200_box+best_actress_win, data=movies)
+paste("The adj. R sqr for 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'+'best_actress_win' is",summary(critics_genre_pic_nom_title_dir_win_top200_actress_win)$adj.r.squared)
+
+```
+
+The largest adjusted R^2 is sitll 0.61588, which is contributed by 'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'.  Therefore, we do not include "mpaa_rating", "best_actor_wini" and "best_actress_win" in our model.
+
+In conclusion, we select the following explanatory variables in our final model: 
+'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'.
+
+And our model is stored in 'critics_genre_pic_nom_title_dir_win_top200'
+
+We rename and store it in 'final_model'.
+
+```{r}
+#rename and store the final model
+final_model<-critics_genre_pic_nom_title_dir_win_top200
+summary(final_model)
+```
+
+
+
+## Part 5: Prediction
+
+Cirtics_score of movies are from https://www.rottentomatoes.com
+Whether or not the movies is in top 200 boxffice is found at http://www.boxofficemojo.com/
+Other features of predicted movies are from https://www.imdb.com
+Next, we will use our model to predict the IMDB rating of film Jackie and Warcraft, both of which are not in our dataset and released in 2016. 
+```{r}
+movies%>%
+  group_by(genre)%>%
+  summarise(n())
+```
+
+```{r}
+#return false, Jackie not in our dataset  'critics_score'+'genre'+'best_pic_nom' +'title_type'+''best_dir_win'+'top200_box'.
+any(movies$title=="Jackie")
+any(movies$title=="Warcraft")
+
+#store features of Jackie in 'jackie'
+jackie <- data.frame(critics_score=88, genre="Drama", best_pic_nom="no", title_type="Feature Film", best_dir_win="no", top200_box="no" )
+#predict imdb_rating of Jackie
+predict(final_model, jackie,  interval = "prediction", level = 0.95)
+
+#store features of Warcraft in 'Warcraft'
+warcraft <- data.frame(critics_score=27, genre="Action & Adventure",  best_pic_nom="no", title_type='Feature Film', best_dir_win="no", top200_box="no" )
+#predict imdb_rating of Warcraft
+predict(final_model, warcraft,  interval = "prediction", level = 0.95)
+
+```
+We receive a predicted IMDB Rating of Jackie at 7.3 with 95% CI (5.97, 8.62) and of Warcraft at 5.6 with 95% CI (4.25 6.91)
+
+## Part 6: Discussion and Conclusion
+
+We need to analyze our final model to see whether the conditions for multiple regression are met. 
+1) each numerical explanatory variable linearly related to the response variable.
+2) residuals are normally distributed at constant variance 
+We have two numerical explanatory variables, 'imdb_num_votes' and "runtime". We use the following R code to plot the residuals and check randomness.
+
+```{r}
+par(mfrow=c(1,3))
+ #residuals plot x=critics_score
+plot(final_model$residuals~movies$critics_score, main="Residual Plot of Critics Score", xlab="Critics Score", ylab="Residuals")
+
+hist(final_model$residuals,main="Histogram of Critics Score Residuals", xlab="Residuals", ylab="Counts") #histogram of Critics Score residuals
+qqnorm(final_model$residuals, main="Normal probability plot of Critics Score residuals") # Normal QQ plot of residuals
+qqline(final_model$residuals)
+
+```
+
+The summary of final_model has a p-value <2.2e-16, which is small enough to yield a statistically meaningful model.The residual plot and histogram show nearly random distribution around 0 and constant variance, indicating that our model is reliable.  
+
+##Improvement of our model
+We can see from the adjusted R^s of all selected variables, the 2nd largest is contributed by "genre". Our dataset classifies genre as action, comedy, documentary, drama, etc. Many films are crossed listed in two or more genres. And classifying the film in different genres will yield significantly different ratings. 
+Take the example of 2014 film Birdman, which is classified as comedy and drama in IMDB. 
+
+```{r results = "hold"}
+movies%>%
+  group_by(genre)%>%
+  summarise(n())
+
+# predict the IMDB rating of Birdman in Drama
+drama_birdman<- data.frame(critics_score=92, title_type="Feature Film",genre="Drama", best_pic_nom="no", best_dir_win="yes",top200_box="no" )
+
+paste ("the predicted IMDB rating of Birdman in Drama is", predict(final_model, drama_birdman))
+
+# predict the IMDB rating of Birdman in Comedy
+comedy_birdman<- data.frame(critics_score=92, title_type="Feature Film",genre="Comedy", best_pic_nom="no", best_dir_win="yes",top200_box="no" )
+paste ("the predicted IMDB rating of Birdman in Comedy is", predict(final_model, comedy_birdman))
+
+```
+
+The predicted IMDB rating of Birdman in Drama is 7.6 and in Comedy is 7.2. The Drama rating is close to its IMDB Rating of 7.7.
+
+We need more comprehensive classification of genre to better predict the IMDB ratings of movies. 
+
+
+
