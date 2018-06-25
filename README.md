@@ -10,5 +10,6 @@
       <p> Hypothesis test, ANOVA, Chi-Square, etc. 
      <p> R Markdown: Statistical Inference.Rmd
      <p> pdf version of report: Statistical_Inference.pdf
-  3) Linear Regression
+<p><b>Linear Regression</b>
+      <p> Predicting IMDB Movie Ratings using Linear Regression Models
   4) Bayesian Statistics 
