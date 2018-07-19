@@ -12,4 +12,5 @@
      <p> pdf version of report: Statistical_Inference.pdf
 <p><b>Linear Regression</b>
       <p> Predicting IMDB Movie Ratings using Linear Regression Models
-  4) Bayesian Statistics 
+<p><b>Bayesian Regression</b>
+      <p> Searching for the best model to predict audience scores of a movie 
